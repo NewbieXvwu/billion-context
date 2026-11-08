@@ -417,7 +417,7 @@ reconcileFoldCoverage(session, msgs, { mode: foldMode, sessionId, log, markerStr
             renderTags,
             protocol: "responses",
             log,
-            transform: (m) => repairResponsesAssistantOrdering(applyReasoningDrop(stripKernelSummaries(m, turn.state), reasoningPlan, log, sessionId), originalMessages),
+            transform: (m) => repairResponsesAssistantOrdering(applyReasoningDrop(stripKernelSummaries(attachSubagentSessions(applyAbsorbView(m, session.state, loopConfig, tokenCount), session), turn.state), reasoningPlan, log, sessionId), originalMessages),
         });
         // #3477: consume the announced native-compaction boundary (pi session_compact
         // → /__bili/plugin/compact → markCompactionBoundary) exactly once, after the
