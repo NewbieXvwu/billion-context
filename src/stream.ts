@@ -1369,6 +1369,10 @@ export function applyRanges(parsed: ReturnType<typeof parseCompressInput>, ctx: 
         // result vs the session object.
         ctx.log(`[acp-proxy: commit state gen=${sessionGenLabel(ctx.session)} tsStamps ${stateStampCount(ctx.session)} -> ${(res.state as { tsStamps?: Record<string, number> }).tsStamps ? Object.keys((res.state as { tsStamps?: Record<string, number> }).tsStamps as Record<string, number>).length : 0} blocks ${(res.state as { blocks?: unknown[] }).blocks?.length ?? 0}]`);
         ctx.session.state = res.state;
+        // #5608-D: this fold is the session's next legitimate cache-breaking
+        // boundary — flag the one-time #4316 citation-space alignment to ride
+        // it (persist.scheduleSave consumes the marker before serializing).
+        ctx.session.pendingLedgerAlign = true;
         // #2627 backstop: no committed state may carry outbound-only turn-
         // separator ids in coverage (a polluted child would otherwise re-
         // poison higher folds via effectiveMessageIds inheritance). Runs
