@@ -220,7 +220,13 @@ function answerFor(convKey, firstUserText, body) {
         const firstText = flatContent(users[0].content);
         if (firstText !== lastUserText && parseDirectives(firstText).length > 0) sourceText = firstText;
     }
-    const queueKey = `${convKey}|${sourceText.slice(0, 64)}`;
+    // Key the queue on the STRIPPED text: the proxy's <acp …> render tags are
+    // system metadata whose bytes legitimately change mid-conversation (#5608-C
+    // drops the time attribute from old refs the moment a fold raises the
+    // timestamp high-water mark; token counts can move too). Keying on raw tag
+    // bytes made the queue reset exactly at folds and replayed directives —
+    // "compress twice" — even though the conversation content never changed.
+    const queueKey = `${convKey}|${stripAcps(sourceText).slice(0, 64)}`;
     if (!convs.has(queueKey)) {
         convs.set(queueKey, { directives: parseDirectives(sourceText), idx: 0 });
     }
