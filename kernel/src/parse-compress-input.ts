@@ -28,13 +28,6 @@ import { clampPrefix } from "./truncate.js";
 import { RELOCATED_POINTER_MARKER } from "./relocate-compress.js";
 import type { CompressRangeSpec } from "./types.js";
 
-// The ack text compressAtFoldPoint v2 writes into a completed compress call's
-// rewritten args (see relocate-compress.ts on the branch that introduced it;
-// mirrored here as a literal so this parser change lands independently of
-// that one — keep the two strings identical when both are on master).
-const RELOCATED_POINTER_MARKER =
-  "[bili] compression succeeded — summary relocated";
-
 export type CompressParseKind =
   | "ok"
   | "empty-input"
