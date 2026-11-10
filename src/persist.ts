@@ -407,6 +407,23 @@ const STALE_COLD_LOAD_WARN_MIN = 30;
 // #5408: how often the frozen-skip ERROR may repeat per session.
 const FROZEN_SKIP_NOTICE_COOLDOWN_MS = 10 * 60_000;
 
+// #5874 P2-final forensics: a session id can be served by MORE THAN ONE
+// Session object (pool object vs a cold-loaded copy that some path keeps
+// using). The stamp timestamps (tsStamps) live on the STATE object, so an
+// object that lost its stamps renders tags without time attributes while the
+// pool object keeps them — the two never visibly diverge in logs unless the
+// object identity is printed. Process-lifetime sequential label per object.
+const sessionGens = new WeakMap<Session, number>();
+let sessionGenCounter = 0;
+export function sessionGenLabel(session: Session): number {
+    let g = sessionGens.get(session);
+    if (g === undefined) sessionGens.set(session, (g = ++sessionGenCounter));
+    return g;
+}
+export function stateStampCount(session: Session): number {
+    return Object.keys(((session.state as { tsStamps?: Record<string, number> }).tsStamps) ?? {}).length;
+}
+
 export class SessionStore {
     /** #5188: args of the SYNCHRONOUS first-open path only. When that path ran
      *  and failed, the save path retries maybeOpen on a cooldown; intentional
@@ -1970,6 +1987,10 @@ export class SessionStore {
         // counter refs (fresh numbers, no collision). Envelope-only loads
         // (no rows) skip honestly.
         this.maybeRestampToLedger(session);
+        // #5874 P2-final forensics: independent of logColdLoad (whose line was
+        // observed missing in a CI artifact while the ledger line above was
+        // present — this call must make the load unmissable with identity).
+        this.log("info", `[persist] afterLoad ${id}: gen=${sessionGenLabel(session)} tsStamps=${stateStampCount(session)} byRaw=${Object.keys((session.state as { messageRefs?: { byRaw?: Record<string, unknown> } }).messageRefs?.byRaw ?? {}).length} blocks=${session.state.blocks.length} aligned=${(session.state as { refLedgerAligned?: boolean }).refLedgerAligned === true}`);
         this.logColdLoad(id, "unified store", session, record.savedAt);
         return session;
     }
@@ -3476,6 +3497,7 @@ export class SessionStore {
      *  write (compare against session.revisionEpoch afterwards). */
     async flushSessionNow(session: Session): Promise<{ ok: boolean; epoch: number | undefined }> {
         const epoch = session.revisionEpoch;
+        this.log("info", `[persist] ${session.id} flushNow pre gen=${sessionGenLabel(session)} tsStamps=${stateStampCount(session)} epoch=${epoch}`);
         try {
             await this.writeNow(session);
         } catch (err) {
@@ -3497,6 +3519,7 @@ export class SessionStore {
             this.writerOffPending.delete(session.id);
             this.runIdleSpillIfIdle(session.id);
         }
+        this.log("info", `[persist] ${session.id} flushNow post gen=${sessionGenLabel(session)} tsStamps=${stateStampCount(session)} epoch=${session.revisionEpoch}`);
         return { ok: true, epoch };
     }
 

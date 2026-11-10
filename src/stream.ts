@@ -11,7 +11,7 @@ import { executeSearchContextTarget, resolveDecompress } from "./decompress-shar
 import { ONE_CALL_HINT } from "acp-kernel";
 import { adoptContentStore, contentStoreOf, ccrEnabled, drainPendingRetrievals, executeRetrieve, retrieveToolName } from "./store.js";
 import { recordThreadTail } from "./server/thread-tracking.js";
-import { peekStoredTailView } from "./persist.js";
+import { peekStoredTailView, sessionGenLabel, stateStampCount } from "./persist.js";
 import { imagePlaceholdersForSummary } from "./image-note.js";
 import { containsBiliInternalText, containsMarkerLineText, containsRenderTagText, containsToolCallEmissionText, stripAcpTags } from "./loop/tag-echo-filter.js";
 import { maxShrinkPerCompress } from "./fetch-util.js";
@@ -1363,6 +1363,11 @@ export function applyRanges(parsed: ReturnType<typeof parseCompressInput>, ctx: 
             const receipt = `[Compression refused: no net shrink — the summary you supplied is not smaller than the range it replaces (${netDesc}). Nothing was folded: no block was created and the context prefix/cache were left untouched.${revNote} Do not re-issue this same range and summary; supply a much shorter summary for the range, target a larger span so the summary shrinks it, or continue your task without compressing.${repeatGuard !== "" ? " " + repeatGuard : ""}]`;
             return compressResult(receipt, "refused", 0, "gate:no-net-shrink");
         }
+        // #5874 P2-final forensics: the compress commit swaps the STATE object
+        // on the session (the tsStamps map lives on state, not the session) —
+        // record both sides so a stamp loss can be attributed to the kernel
+        // result vs the session object.
+        ctx.log(`[acp-proxy: commit state gen=${sessionGenLabel(ctx.session)} tsStamps ${stateStampCount(ctx.session)} -> ${(res.state as { tsStamps?: Record<string, number> }).tsStamps ? Object.keys((res.state as { tsStamps?: Record<string, number> }).tsStamps as Record<string, number>).length : 0} blocks ${(res.state as { blocks?: unknown[] }).blocks?.length ?? 0}]`);
         ctx.session.state = res.state;
         // #2627 backstop: no committed state may carry outbound-only turn-
         // separator ids in coverage (a polluted child would otherwise re-
